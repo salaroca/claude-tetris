@@ -33,6 +33,9 @@ jobs:
                (qué pide, causa probable, archivos/áreas de game.js implicados,
                enfoque de solución sugerido) con:
                gh issue comment ${{ github.event.issue.number }} --body "..."
+               El comentario DEBE estar escrito en formato Markdown válido
+               (usa encabezados ##, listas -, código `inline` o bloques ```)
+               para que GitHub lo renderice correctamente.
 
             Sé conciso y técnico. El repo es un Tetris en JS vanilla (index.html,
             style.css, game.js). No modifiques código.
