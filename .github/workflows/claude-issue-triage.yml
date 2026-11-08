@@ -1,0 +1,39 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write        # required for labels and comment
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage issue with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} de este repo.
+
+            1. Lee título y cuerpo con: gh issue view ${{ github.event.issue.number }}
+            2. Consulta labels EXISTENTES del repo con: gh label list
+            3. Asigna SOLO labels que ya existan y encajen con:
+               gh issue edit ${{ github.event.issue.number }} --add-label "<label>"
+               No crees labels nuevos.
+            4. Publica UN comentario con un diagnóstico general del problema
+               (qué pide, causa probable, archivos/áreas de game.js implicados,
+               enfoque de solución sugerido) con:
+               gh issue comment ${{ github.event.issue.number }} --body "..."
+
+            Sé conciso y técnico. El repo es un Tetris en JS vanilla (index.html,
+            style.css, game.js). No modifiques código.
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"'
