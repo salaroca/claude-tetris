@@ -39,6 +39,26 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggle = document.getElementById('theme-toggle');
+
+let gridColor, highlightColor;
+
+function readThemeColors() {
+  const styles = getComputedStyle(document.documentElement);
+  gridColor = styles.getPropertyValue('--grid').trim() || '#22222e';
+  highlightColor = styles.getPropertyValue('--highlight').trim() || 'rgba(255,255,255,0.12)';
+}
+
+function applyTheme(theme, persist) {
+  document.documentElement.dataset.theme = theme;
+  themeToggle.setAttribute('aria-pressed', String(theme === 'light'));
+  if (persist) {
+    try { localStorage.setItem('theme', theme); } catch (e) { /* ignore */ }
+  }
+  readThemeColors();
+  // Redibuja aunque el juego esté en pausa o terminado
+  if (current && next) { draw(); drawNext(); }
+}
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -163,13 +183,13 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillStyle = highlightColor;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -300,5 +320,13 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+themeToggle.addEventListener('click', () => {
+  const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  applyTheme(theme, true);
+  themeToggle.blur(); // evita que Espacio/Enter reactiven el botón durante el juego
+});
+
+applyTheme(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark', false);
 
 init();
