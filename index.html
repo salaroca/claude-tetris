@@ -4,9 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tetris</title>
+  <script>
+    (function () {
+      var t = 'dark';
+      try { if (localStorage.getItem('theme') === 'light') t = 'light'; } catch (e) {}
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Modo claro">
+    <span id="theme-label">Oscuro</span>
+    <span class="switch" aria-hidden="true"></span>
+  </button>
+
   <h1 class="title">TETRIS</h1>
 
   <div class="wrapper">
