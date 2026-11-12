@@ -87,11 +87,44 @@ body {
 
 /* ---- Panel lateral ---- */
 .panel {
-  width: 160px;
+  width: 230px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
   padding-top: 4px;
+}
+
+/* Stats en fila */
+.stats-row {
+  display: flex;
+  gap: 8px;
+}
+
+.stats-row .panel-section {
+  flex: 1;
+  min-width: 0;
+}
+
+/* NEXT + HOLD lado a lado */
+.preview-row {
+  display: flex;
+  gap: 10px;
+}
+
+.preview-row .panel-section {
+  flex: 1;
+}
+
+/* CONTROLES + POWER-UPS en dos columnas */
+.help-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.help-row .panel-section {
+  flex: 1;
+  min-width: 0;
 }
 
 .panel-section {
@@ -109,10 +142,13 @@ body {
 
 .value {
   font-family: 'Courier New', Courier, monospace;
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #next-canvas {
@@ -120,6 +156,8 @@ body {
   border: 1px solid var(--border);
   background: var(--board-bg);
   border-radius: 4px;
+  width: 84px;
+  height: 84px;
 }
 
 /* ---- Controles ---- */
@@ -131,11 +169,12 @@ body {
 }
 
 .controls li {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  flex-wrap: wrap;
 }
 
 kbd {
@@ -253,4 +292,149 @@ kbd {
 .theme-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ---- Hold canvas ---- */
+#hold-canvas {
+  display: block;
+  border: 1px solid var(--border);
+  background: var(--board-bg);
+  border-radius: 4px;
+  width: 84px;
+  height: 84px;
+}
+
+/* ---- Energy bar ---- */
+.energy-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--kbd-bg);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.energy-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.15s, background 0.2s;
+}
+
+.energy-bar.full {
+  background: #ffd54f;
+  animation: pulse-energy 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-energy {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+/* ---- Skill menu ---- */
+.skill-menu {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
+  border-radius: 4px;
+  z-index: 10;
+}
+
+.skill-menu.hidden { display: none; }
+
+.skill-menu-box {
+  background: var(--board-bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 210px;
+}
+
+.skill-menu-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.skill-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skill-list li {
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.skill-list li kbd {
+  min-width: 20px;
+  text-align: center;
+}
+
+.skill-cancel {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ---- Next-5 overlay ---- */
+.next5-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
+  border-radius: 4px;
+  z-index: 10;
+}
+
+.next5-overlay.hidden { display: none; }
+
+.next5-box {
+  background: var(--board-bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.next5-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+.next5-hint {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+#next5-canvas {
+  display: block;
+  border: 1px solid var(--border);
+  background: var(--board-bg);
+  border-radius: 4px;
 }

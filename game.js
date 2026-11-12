@@ -33,18 +33,27 @@ const PIECES = [
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const ENERGY_GAIN = [0, 25, 40, 60, 90];
+const ENERGY_MAX = 100;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
 const nextCtx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
+const next5Canvas = document.getElementById('next5-canvas');
+const next5Ctx = next5Canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const linesEl = document.getElementById('lines');
 const levelEl = document.getElementById('level');
+const energyBar = document.getElementById('energy-bar');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const skillMenu = document.getElementById('skill-menu');
+const next5Overlay = document.getElementById('next5-overlay');
 
 const themeColors = { grid: '#22222e', shine: 'rgba(255,255,255,0.12)' };
 const themeToggle = document.getElementById('theme-toggle');
@@ -66,11 +75,14 @@ function applyTheme(theme, persist) {
     try { localStorage.setItem('theme', theme); } catch (e) {}
   }
   readThemeColors();
-  if (board && current && next) { draw(); drawNext(); }
+  if (board && current && next) { draw(); drawNext(); drawHold(); }
 }
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, next, pieceQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let powerUpPending, nextPowerAt, frozenUntil;
+let energy, holdPiece, slowUntil;
+let lastBoardState, lastCurrent, lastScore;
+let skillMenuOpen, next5Visible;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -178,6 +190,7 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    energy = Math.min(ENERGY_MAX, energy + (ENERGY_GAIN[cleared] || 90));
     if (lines >= nextPowerAt) {
       powerUpPending = true;
       nextPowerAt += 10;
@@ -209,26 +222,191 @@ function softDrop() {
   }
 }
 
+function saveUndoState() {
+  lastBoardState = board.map(r => [...r]);
+  lastCurrent = { ...current, shape: current.shape.map(r => [...r]) };
+  lastScore = score;
+}
+
 function lockPiece() {
+  saveUndoState();
   if (current.power) applyPower(current.power, current.x, current.y);
   else merge();
   clearLines();
   spawn();
 }
 
+function fillQueue() {
+  while (pieceQueue.length < 4) pieceQueue.push(randomPiece());
+}
+
 function spawn() {
   current = next;
-  next = powerUpPending ? (powerUpPending = false, randomPowerUp()) : randomPiece();
+  if (powerUpPending) {
+    powerUpPending = false;
+    next = randomPowerUp();
+  } else {
+    next = pieceQueue.shift();
+    pieceQueue.push(randomPiece());
+  }
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
   drawNext();
 }
 
+// ---- Skills ----
+
+function showSkillMenu() {
+  if (energy < ENERGY_MAX || gameOver || paused) return;
+  skillMenuOpen = true;
+  cancelAnimationFrame(animId);
+  skillMenu.classList.remove('hidden');
+}
+
+function hideSkillMenu() {
+  skillMenuOpen = false;
+  skillMenu.classList.add('hidden');
+  resumeAfterSkill();
+}
+
+function resumeAfterSkill() {
+  if (!paused && !gameOver && !skillMenuOpen && !next5Visible) {
+    lastTime = performance.now();
+    animId = requestAnimationFrame(loop);
+  }
+}
+
+function activateSkill(n) {
+  if (energy < ENERGY_MAX) return;
+  energy = 0;
+  skillMenuOpen = false;
+  skillMenu.classList.add('hidden');
+  updateHUD();
+
+  if (n === 0) {
+    // Ver 5 siguientes
+    showNext5();
+    return;
+  }
+
+  if (n === 1) {
+    // Intercambiar pieza actual por otra del pool
+    current = randomPiece();
+    draw();
+    resumeAfterSkill();
+    return;
+  }
+
+  if (n === 2) {
+    // Ralentizar tiempo 10s
+    slowUntil = performance.now() + 10000;
+    resumeAfterSkill();
+    return;
+  }
+
+  if (n === 3) {
+    // Deshacer última colocación
+    if (lastBoardState) {
+      board = lastBoardState.map(r => [...r]);
+      current = { ...lastCurrent, shape: lastCurrent.shape.map(r => [...r]) };
+      score = lastScore;
+      lastBoardState = null;
+      updateHUD();
+      draw();
+    }
+    resumeAfterSkill();
+    return;
+  }
+
+  if (n === 4) {
+    // Reservar pieza (hold)
+    if (!holdPiece) {
+      holdPiece = { type: current.type, power: current.power, shape: current.shape.map(r => [...r]) };
+      current = next;
+      if (powerUpPending) {
+        powerUpPending = false;
+        next = randomPowerUp();
+      } else {
+        next = pieceQueue.shift();
+        pieceQueue.push(randomPiece());
+      }
+      if (collide(current.shape, current.x, current.y)) { endGame(); return; }
+      drawNext();
+    } else {
+      const shape = holdPiece.shape.map(r => [...r]);
+      const incoming = {
+        type: holdPiece.type, power: holdPiece.power, shape,
+        x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0,
+      };
+      holdPiece = { type: current.type, power: current.power, shape: current.shape.map(r => [...r]) };
+      current = incoming;
+    }
+    drawHold();
+    draw();
+    resumeAfterSkill();
+    return;
+  }
+
+  resumeAfterSkill();
+}
+
+// ---- Next-5 overlay ----
+
+function showNext5() {
+  next5Visible = true;
+  drawNext5();
+  next5Overlay.classList.remove('hidden');
+}
+
+function hideNext5() {
+  next5Visible = false;
+  next5Overlay.classList.add('hidden');
+  resumeAfterSkill();
+}
+
+function drawNext5() {
+  const NB = 20;
+  const AREA = 4 * NB;
+  const GAP = 6;
+  next5Ctx.clearRect(0, 0, next5Canvas.width, next5Canvas.height);
+  const pieces = [next, ...pieceQueue];
+  pieces.forEach((p, i) => {
+    if (!p) return;
+    const shape = p.shape;
+    const offX = Math.floor((4 - shape[0].length) / 2);
+    const offY = Math.floor((4 - shape.length) / 2);
+    const baseYpx = i * (AREA + GAP);
+    for (let r = 0; r < shape.length; r++)
+      for (let c = 0; c < shape[r].length; c++) {
+        if (!shape[r][c]) continue;
+        const px = (offX + c) * NB + 1;
+        const py = baseYpx + (offY + r) * NB + 1;
+        next5Ctx.fillStyle = COLORS[shape[r][c]];
+        next5Ctx.fillRect(px, py, NB - 2, NB - 2);
+        next5Ctx.fillStyle = themeColors.shine;
+        next5Ctx.fillRect(px, py, NB - 2, 3);
+      }
+    if (p.power) {
+      const icon = POWER_ICONS[p.power];
+      next5Ctx.font = `${Math.floor(NB * 0.65)}px serif`;
+      next5Ctx.textAlign = 'center';
+      next5Ctx.textBaseline = 'middle';
+      next5Ctx.fillText(icon, (offX + 0) * NB + NB / 2, baseYpx + (offY + 0) * NB + NB / 2);
+    }
+  });
+}
+
+// ---- HUD & Drawing ----
+
 function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  const pct = Math.min(100, Math.round((energy / ENERGY_MAX) * 100));
+  energyBar.style.width = pct + '%';
+  if (energy >= ENERGY_MAX) energyBar.classList.add('full');
+  else energyBar.classList.remove('full');
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -237,7 +415,6 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.globalAlpha = alpha ?? 1;
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
   context.fillStyle = themeColors.shine;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
@@ -275,40 +452,47 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
-  // board
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
 
-  // ghost
   const gy = ghostY();
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       if (current.shape[r][c])
         drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
 
-  // current piece
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
 
-  // power-up icon overlay on current piece
   if (current.power) drawPowerIcon(ctx, current.x, current.y, current.power, BLOCK);
 
-  // freeze badge
-  if (performance.now() < frozenUntil) {
-    ctx.globalAlpha = 0.85;
+  const now = performance.now();
+  let badgeY = 6;
+  if (now < frozenUntil) {
+    ctx.globalAlpha = 0.9;
     ctx.fillStyle = '#90caf9';
-    ctx.font = 'bold 14px monospace';
+    ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('❄ CONGELADO', canvas.width / 2, 6);
+    ctx.fillText('❄ CONGELADO', canvas.width / 2, badgeY);
+    ctx.globalAlpha = 1;
+    badgeY += 18;
+  }
+  if (now < slowUntil) {
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#ffd54f';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('⏱ RALENTIZADO', canvas.width / 2, badgeY);
     ctx.globalAlpha = 1;
   }
 }
 
 function drawNext() {
-  const NB = 30;
+  const NB = 21;
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
   const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
@@ -317,6 +501,19 @@ function drawNext() {
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
   if (next.power) drawPowerIcon(nextCtx, offX, offY, next.power, NB);
+}
+
+function drawHold() {
+  const NB = 21;
+  holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+  if (!holdPiece) return;
+  const shape = holdPiece.shape;
+  const offX = Math.floor((4 - shape[0].length) / 2);
+  const offY = Math.floor((4 - shape.length) / 2);
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      drawBlock(holdCtx, offX + c, offY + r, shape[r][c], NB);
+  if (holdPiece.power) drawPowerIcon(holdCtx, offX, offY, holdPiece.power, NB);
 }
 
 function endGame() {
@@ -328,9 +525,10 @@ function endGame() {
 }
 
 function togglePause() {
-  if (gameOver) return;
+  if (gameOver || skillMenuOpen || next5Visible) return;
   paused = !paused;
   if (!paused) {
+    overlay.classList.add('hidden');
     lastTime = performance.now();
     loop(lastTime);
   } else {
@@ -345,12 +543,13 @@ function loop(ts) {
   if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
+  const effectiveInterval = performance.now() < slowUntil ? dropInterval * 3 : dropInterval;
   if (ts < frozenUntil) {
     dropAccum = 0;
   } else {
     dropAccum += dt;
   }
-  if (dropAccum >= dropInterval) {
+  if (dropAccum >= effectiveInterval) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
       current.y++;
@@ -375,17 +574,40 @@ function init() {
   powerUpPending = false;
   nextPowerAt = 10;
   frozenUntil = 0;
+  energy = 0;
+  holdPiece = null;
+  slowUntil = 0;
+  lastBoardState = null;
+  lastCurrent = null;
+  lastScore = 0;
+  skillMenuOpen = false;
+  next5Visible = false;
+  pieceQueue = Array.from({ length: 4 }, randomPiece);
   next = randomPiece();
   spawn();
   updateHUD();
+  drawHold();
   overlay.classList.add('hidden');
+  skillMenu.classList.add('hidden');
+  next5Overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
+  if (next5Visible) { hideNext5(); return; }
+
+  if (skillMenuOpen) {
+    if (e.code === 'Escape') { hideSkillMenu(); return; }
+    const n = parseInt(e.key) - 1;
+    if (n >= 0 && n <= 4) activateSkill(n);
+    return;
+  }
+
   if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyQ') { showSkillMenu(); return; }
   if (paused || gameOver) return;
+
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
@@ -412,7 +634,7 @@ restartBtn.addEventListener('click', init);
 
 themeToggle.addEventListener('click', () => {
   applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true);
-  themeToggle.blur(); // evita que Espacio/Enter reactiven el botón
+  themeToggle.blur();
 });
 
 applyTheme(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark', false);

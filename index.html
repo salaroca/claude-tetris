@@ -26,45 +26,68 @@
       <canvas id="board" width="300" height="600"></canvas>
 
       <aside class="panel">
-        <div class="panel-section">
-          <span class="label">SCORE</span>
-          <span class="value" id="score">0</span>
-        </div>
-        <div class="panel-section">
-          <span class="label">LINES</span>
-          <span class="value" id="lines">0</span>
-        </div>
-        <div class="panel-section">
-          <span class="label">LEVEL</span>
-          <span class="value" id="level">1</span>
+
+        <!-- SCORE / LINES / LEVEL en fila -->
+        <div class="stats-row">
+          <div class="panel-section">
+            <span class="label">SCORE</span>
+            <span class="value" id="score">0</span>
+          </div>
+          <div class="panel-section">
+            <span class="label">LINES</span>
+            <span class="value" id="lines">0</span>
+          </div>
+          <div class="panel-section">
+            <span class="label">LEVEL</span>
+            <span class="value" id="level">1</span>
+          </div>
         </div>
 
+        <!-- NEXT + HOLD lado a lado -->
+        <div class="preview-row">
+          <div class="panel-section">
+            <span class="label">NEXT</span>
+            <canvas id="next-canvas" width="84" height="84"></canvas>
+          </div>
+          <div class="panel-section">
+            <span class="label">HOLD</span>
+            <canvas id="hold-canvas" width="84" height="84"></canvas>
+          </div>
+        </div>
+
+        <!-- ENERGÍA -->
         <div class="panel-section">
-          <span class="label">NEXT</span>
-          <canvas id="next-canvas" width="120" height="120"></canvas>
+          <span class="label">ENERGÍA <kbd>Q</kbd></span>
+          <div class="energy-bar-track">
+            <div id="energy-bar" class="energy-bar"></div>
+          </div>
         </div>
 
-        <div class="panel-section controls">
-          <span class="label">CONTROLS</span>
-          <ul>
-            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
-            <li><kbd>↑</kbd> rotar</li>
-            <li><kbd>↓</kbd> bajar</li>
-            <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
-          </ul>
+        <!-- CONTROLES + POWER-UPS en dos columnas -->
+        <div class="help-row">
+          <div class="panel-section controls">
+            <span class="label">CONTROLES</span>
+            <ul>
+              <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+              <li><kbd>↑</kbd> rotar</li>
+              <li><kbd>↓</kbd> bajar</li>
+              <li><kbd>Space</kbd> caída</li>
+              <li><kbd>P</kbd> pausa</li>
+              <li><kbd>Q</kbd> habilidad ⚡</li>
+            </ul>
+          </div>
+          <div class="panel-section controls">
+            <span class="label">POWER-UPS</span>
+            <ul>
+              <li>💣 Bomba</li>
+              <li>⚡ Rayo</li>
+              <li>🎨 Tinte</li>
+              <li>⬇ Gravedad</li>
+              <li>❄ Congela</li>
+            </ul>
+          </div>
         </div>
 
-        <div class="panel-section controls">
-          <span class="label">POWER-UPS</span>
-          <ul>
-            <li>💣 Bomba — área 3×3</li>
-            <li>⚡ Rayo — fila + col.</li>
-            <li>🎨 Tinte — borra color</li>
-            <li>⬇ Gravedad — compacta</li>
-            <li>❄ Congela — 5s</li>
-          </ul>
-        </div>
       </aside>
     </div>
 
@@ -73,6 +96,28 @@
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
         <button id="restart-btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <div id="skill-menu" class="skill-menu hidden">
+      <div class="skill-menu-box">
+        <p class="skill-menu-title">⚡ HABILIDAD</p>
+        <ul class="skill-list">
+          <li><kbd>1</kbd><span>🔮 Ver 5 siguientes</span></li>
+          <li><kbd>2</kbd><span>🔄 Cambiar pieza</span></li>
+          <li><kbd>3</kbd><span>⏱ Ralentizar 10s</span></li>
+          <li><kbd>4</kbd><span>↩ Deshacer último</span></li>
+          <li><kbd>5</kbd><span>📦 Guardar pieza</span></li>
+        </ul>
+        <p class="skill-cancel"><kbd>ESC</kbd> cancelar</p>
+      </div>
+    </div>
+
+    <div id="next5-overlay" class="next5-overlay hidden">
+      <div class="next5-box">
+        <p class="next5-title">PRÓXIMAS 5</p>
+        <canvas id="next5-canvas" width="80" height="424"></canvas>
+        <p class="next5-hint">Pulsa cualquier tecla</p>
       </div>
     </div>
   </div>
