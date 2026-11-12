@@ -14,7 +14,11 @@ const COLORS = [
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
   '#b0bec5', // Tuerca - gris metálico
+  '#eceff1', // Power-up - blanco hielo
 ];
+
+const POWERS = ['bomb', 'ray', 'dye', 'gravity', 'freeze'];
+const POWER_ICONS = { bomb: '💣', ray: '⚡', dye: '🎨', gravity: '⬇', freeze: '❄' };
 
 const PIECES = [
   null,
@@ -66,6 +70,7 @@ function applyTheme(theme, persist) {
 }
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let powerUpPending, nextPowerAt, frozenUntil;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -75,6 +80,46 @@ function randomPiece() {
   const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPowerUp() {
+  const power = POWERS[Math.floor(Math.random() * POWERS.length)];
+  return { type: 'power', power, shape: [[9]], x: Math.floor(COLS / 2), y: 0 };
+}
+
+function applyPower(power, cx, cy) {
+  score += 50 * level;
+  if (power === 'bomb') {
+    for (let dr = -1; dr <= 1; dr++)
+      for (let dc = -1; dc <= 1; dc++) {
+        const r = cy + dr, c = cx + dc;
+        if (r >= 0 && r < ROWS && c >= 0 && c < COLS) board[r][c] = 0;
+      }
+  } else if (power === 'ray') {
+    if (cy >= 0 && cy < ROWS) board[cy].fill(0);
+    for (let r = 0; r < ROWS; r++) board[r][cx] = 0;
+  } else if (power === 'dye') {
+    const present = new Set();
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (board[r][c] >= 1 && board[r][c] <= 8) present.add(board[r][c]);
+    if (present.size > 0) {
+      const targets = [...present];
+      const victim = targets[Math.floor(Math.random() * targets.length)];
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (board[r][c] === victim) board[r][c] = 0;
+    }
+  } else if (power === 'gravity') {
+    for (let c = 0; c < COLS; c++) {
+      const col = [];
+      for (let r = 0; r < ROWS; r++) if (board[r][c]) col.push(board[r][c]);
+      for (let r = 0; r < ROWS; r++) board[r][c] = r < ROWS - col.length ? 0 : col[r - (ROWS - col.length)];
+    }
+  } else if (power === 'freeze') {
+    frozenUntil = performance.now() + 5000;
+  }
+  updateHUD();
 }
 
 function collide(shape, ox, oy) {
@@ -133,6 +178,10 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (lines >= nextPowerAt) {
+      powerUpPending = true;
+      nextPowerAt += 10;
+    }
     updateHUD();
   }
 }
@@ -161,14 +210,15 @@ function softDrop() {
 }
 
 function lockPiece() {
-  merge();
+  if (current.power) applyPower(current.power, current.x, current.y);
+  else merge();
   clearLines();
   spawn();
 }
 
 function spawn() {
   current = next;
-  next = randomPiece();
+  next = powerUpPending ? (powerUpPending = false, randomPowerUp()) : randomPiece();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -210,6 +260,17 @@ function drawGrid() {
   }
 }
 
+function drawPowerIcon(context, px, py, power, size, alpha) {
+  const icon = POWER_ICONS[power];
+  if (!icon) return;
+  context.globalAlpha = alpha ?? 1;
+  context.font = `${Math.floor(size * 0.65)}px serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(icon, px * size + size / 2, py * size + size / 2);
+  context.globalAlpha = 1;
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
@@ -230,6 +291,20 @@ function draw() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+
+  // power-up icon overlay on current piece
+  if (current.power) drawPowerIcon(ctx, current.x, current.y, current.power, BLOCK);
+
+  // freeze badge
+  if (performance.now() < frozenUntil) {
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#90caf9';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('❄ CONGELADO', canvas.width / 2, 6);
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawNext() {
@@ -241,6 +316,7 @@ function drawNext() {
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  if (next.power) drawPowerIcon(nextCtx, offX, offY, next.power, NB);
 }
 
 function endGame() {
@@ -269,7 +345,11 @@ function loop(ts) {
   if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
+  if (ts < frozenUntil) {
+    dropAccum = 0;
+  } else {
+    dropAccum += dt;
+  }
   if (dropAccum >= dropInterval) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
@@ -292,6 +372,9 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
+  powerUpPending = false;
+  nextPowerAt = 10;
+  frozenUntil = 0;
   next = randomPiece();
   spawn();
   updateHUD();
